@@ -1,23 +1,24 @@
 
 import random
-random.seed(1337)
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
 import numpy as np
 
-np.random.seed(1337)
-torch.manual_seed(1337)
+# np.random.seed(1337)
+# torch.manual_seed(1337)
+# random.seed(1337)
 
 
 print("Finished imports")
 
-# with open('input.txt', 'r', encoding='utf-8') as f:
-#     text = f.read() # get text
+with open('input.txt', 'r', encoding='utf-8') as f:
+    text = f.read() # get text
 
-text = ["bac","bab","abac","babac"]
-text = ["a","b","c"]
+#text = ["bac","bab","abac","babac"]
+#text = ["a","b","c"]
 #given ba, 50/50 
 tokens = sorted(list(set("".join(text))))
 vocab_size = len(tokens) + 1
@@ -44,35 +45,35 @@ def oneHott(x):
     res[cid[x]] = 1
     return res
 
-for i in text:
-    rec = []
-    for j in i:
-        rec.append(oneHott(j))
-    rec.append(end)
-    inputy.append(rec)
-
 # for i in text:
-#     if i == "\n":
-#         if wTFN:
-#             wTFN = False
-#             recording = True
-#         if double:
-#             recording = False
-#             wTFN = True
-#             record.append(end)
-#             inputy.append(record[1:])
-#             record = []
-#         #     if not once:
-#         #         once= True
-#         #     else:
-#         #         break
-#         double = not double
-#     if double and i != "\n":
-#         double = False
-#     if recording:
-#         record.append(oneHott(i)) if i != " " else None
+#     rec = []
+#     for j in i:
+#         rec.append(oneHott(j))
+#     rec.append(end)
+#     inputy.append(rec)
 
-# inputy = inputy[1:]
+for i in text:
+    if i == "\n":
+        if wTFN:
+            wTFN = False
+            recording = True
+        if double:
+            recording = False
+            wTFN = True
+            record.append(end)
+            inputy.append(record[1:])
+            record = []
+        #     if not once:
+        #         once= True
+        #     else:
+        #         break
+        double = not double
+    if double and i != "\n":
+        double = False
+    if recording:
+        record.append(oneHott(i)) if i != " " else None
+
+inputy = inputy[1:]
 print("Finished data processing")
 
 class LSTM(nn.Module):
@@ -233,17 +234,19 @@ class Model(nn.Module):
             last = cid[message[0]]
             onehots = [oneHott(i) for i in message]
             onehots.append(end)
-            print(onehots)
             sp = [i / sum(self.sprobs) for i in self.sprobs]
             print(sp)
             decimal = sum(sp[:last])
             print(decimal)
             rang = sp[last]
-            for index, i in enumerate(onehots[1:]):
+            self.m = 0
+            for index, i in enumerate(onehots):
+                if index == 0:
+                    continue
                 print("the for loop ran")
                 self.model.forward(torch.tensor(onehots[index-1], dtype=torch.float64).view(1,-1))
                 out = self.model.getOut().view(-1).tolist()
-                print(out)
+                self.m = self.model.getHids()
                 b = sum(out[:np.argmax(i)])
                 decimal += b*rang
                 print(decimal)
@@ -255,7 +258,6 @@ class Model(nn.Module):
             self.model.reset()
             outdistro = [i / sum(self.sprobs) for i in self.sprobs]
             res = ""
-
             for _ in range(100):
                 print(outdistro)
                 c = 0
@@ -273,7 +275,6 @@ class Model(nn.Module):
                     break
                 res += icd[c]
                 print("Got a " + icd[c])
-                print(oneHott(icd[c]))
                 self.model.forward(torch.tensor(oneHott(icd[c]), dtype=torch.float64).view(1,-1))
                 outdistro = self.model.getOut().view(-1).tolist()
 
@@ -292,9 +293,9 @@ model.makeTest()
 model.trainSequence(1, inputy, graph=False)
 model.makeTest()
 
-# dec = model.generateDecimal("b")
-# print(dec)
-# outt = model.interpretDecimal(dec)
-# print(outt)
+dec = model.generateDecimal("Helloworld")
+print(dec)
+outt = model.interpretDecimal(dec)
+print(outt)
 
-print(model.testDeterminism())
+#print(model.testDeterminism())
