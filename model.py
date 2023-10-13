@@ -13,7 +13,6 @@ random.seed(1337)
 
 """
 TODO:
--Make sure the LSTM works
 -Convert decimal to binary
 
 """
@@ -22,7 +21,7 @@ print("Finished imports")
 # with open('input.txt', 'r', encoding='utf-8') as f:
 #     text = f.read() # get text
 
-text = ["bac","bab","abac","babac"]
+text = ["bac", "bbc", "acb", "cabac", "babac"]
 #text = ["a","b","c"]
 #given ba, 50/50 
 tokens = sorted(list(set("".join(text))))
@@ -147,7 +146,7 @@ class Model(nn.Module):
         self,
         epochs,
         inputs,
-        criterion=nn.CrossEntropyLoss(),
+        criterion=nn.BCELoss(),
         alpha=3e-4,
         scheduler=False,
         schedPatience=100,
@@ -166,16 +165,18 @@ class Model(nn.Module):
         for epoch in range(epochs):
             loss_holder = []
             for line in inputs:
+                print("new line ------")
                 start = True
                 for char in range(len(line) - 1):
+                    print("new character")
+                    self.model.forward(torch.tensor(line[char], dtype=torch.float64).view(1,-1))
                     if start:
                         pos = np.argmax(line[char])
                         self.sprobs[pos] += 1
                         start = False
-                        continue
-                    self.model.forward(torch.tensor(line[char], dtype=torch.float64).view(1,-1))
                     output = self.model.getOut().view(-1)
                     loss = criterion(output, torch.tensor(line[char+1], dtype=torch.float64).view(-1))
+                    print("Put in ", icd[np.argmax(line[char])], " got ", output.tolist(), " when wanted ", line[char+1], " and the loss was ", loss.item())
                     optimizer.zero_grad()
                     loss.backward()
                     optimizer.step()
@@ -196,6 +197,7 @@ class Model(nn.Module):
             plt.clf()
     
     def makeTest(self):
+        self.model.reset()
         if sum(self.sprobs) == 0:
             start = icd[random.randint(0,vocab_size)]
         else:
@@ -207,7 +209,6 @@ class Model(nn.Module):
         for _ in range(100):
             self.model.forward(last)
             output = self.model.getOut().view(1,-1)
-            last = output
             a = output.view(-1).tolist()
             a = [i/sum(a) for i in a]
             print("the output distro given " + "".join(out) + " was " + str(a))
@@ -215,23 +216,10 @@ class Model(nn.Module):
             if pos == vocab_size - 1:
                 break
             letter = icd[pos]
+            last = torch.tensor(oneHott(icd[pos]), dtype=torch.float64).view(1, -1)
             out.append(letter)
         print(out)
         print("".join(out))
-
-    def testDeterminism(self):
-        inp = torch.tensor([0,1,0,0], dtype=torch.float64).view(1,-1)
-        with torch.no_grad():
-            self.model.eval()
-            self.model.reset()
-            self.model.forward(inp)
-            a = self.model.getOut().view(-1).tolist()
-            self.model.reset()
-            self.model.forward(inp)
-            b = self.model.getOut().view(-1).tolist()
-            print(a)
-            print(b)
-            return a==b
 
     def generateDecimal(self, message):
         with torch.no_grad():
@@ -303,8 +291,9 @@ num_epochs = 10
 print(inputy)
 model = Model(input_size, input_size, hidden_size)
 model.makeTest()
-# while (input("Train?") == "y"):
 model.trainSequence(500, inputy)
+model.makeTest()
+model.makeTest()
 model.makeTest()
 
 # dec = model.generateDecimal("Helloworld")
