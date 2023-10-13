@@ -7,17 +7,22 @@ import torch.nn.functional as F
 import matplotlib.pyplot as plt
 import numpy as np
 
-# np.random.seed(1337)
-# torch.manual_seed(1337)
-# random.seed(1337)
+np.random.seed(1337)
+torch.manual_seed(1337)
+random.seed(1337)
 
+"""
+TODO:
+-Make sure the LSTM works
+-Convert decimal to binary
 
+"""
 print("Finished imports")
 
-with open('input.txt', 'r', encoding='utf-8') as f:
-    text = f.read() # get text
+# with open('input.txt', 'r', encoding='utf-8') as f:
+#     text = f.read() # get text
 
-#text = ["bac","bab","abac","babac"]
+text = ["bac","bab","abac","babac"]
 #text = ["a","b","c"]
 #given ba, 50/50 
 tokens = sorted(list(set("".join(text))))
@@ -45,35 +50,35 @@ def oneHott(x):
     res[cid[x]] = 1
     return res
 
-# for i in text:
-#     rec = []
-#     for j in i:
-#         rec.append(oneHott(j))
-#     rec.append(end)
-#     inputy.append(rec)
-
 for i in text:
-    if i == "\n":
-        if wTFN:
-            wTFN = False
-            recording = True
-        if double:
-            recording = False
-            wTFN = True
-            record.append(end)
-            inputy.append(record[1:])
-            record = []
-        #     if not once:
-        #         once= True
-        #     else:
-        #         break
-        double = not double
-    if double and i != "\n":
-        double = False
-    if recording:
-        record.append(oneHott(i)) if i != " " else None
+    rec = []
+    for j in i:
+        rec.append(oneHott(j))
+    rec.append(end)
+    inputy.append(rec)
 
-inputy = inputy[1:]
+# for i in text:
+#     if i == "\n":
+#         if wTFN:
+#             wTFN = False
+#             recording = True
+#         if double:
+#             recording = False
+#             wTFN = True
+#             record.append(end)
+#             inputy.append(record[1:])
+#             record = []
+#         #     if not once:
+#         #         once= True
+#         #     else:
+#         #         break
+#         double = not double
+#     if double and i != "\n":
+#         double = False
+#     if recording:
+#         record.append(oneHott(i)) if i != " " else None
+
+# inputy = inputy[1:]
 print("Finished data processing")
 
 class LSTM(nn.Module):
@@ -205,6 +210,7 @@ class Model(nn.Module):
             last = output
             a = output.view(-1).tolist()
             a = [i/sum(a) for i in a]
+            print("the output distro given " + "".join(out) + " was " + str(a))
             pos = np.random.choice(range(len(a)), p=a)
             if pos == vocab_size - 1:
                 break
@@ -258,16 +264,23 @@ class Model(nn.Module):
             self.model.reset()
             outdistro = [i / sum(self.sprobs) for i in self.sprobs]
             res = ""
-            for _ in range(100):
-                print(outdistro)
-                c = 0
-                ps = 0
-                for i in range(len(outdistro)):
-                    ps = sum(outdistro[:i])
-                    if ps <= decimal and ps + outdistro[i] > decimal:
-                        c = i
-                        break
+            def midsearch(decimal, outidstro):
+                l, r = 0, len(outidstro)
 
+                while l < r:
+                    mid = (r-l)//2 + l
+                    prev = sum(outidstro[:mid])
+                    small = prev <= decimal
+                    big = prev + outidstro[mid] > decimal
+                    if small and big:
+                        return mid, prev
+                    if small:
+                        l = mid + 1
+                    if big:
+                        r = mid
+
+            for _ in range(100):
+                c, ps = midsearch(decimal, outdistro)
                 decimal -= ps
                 decimal /= outdistro[c]
                 if c == vocab_size - 1:
@@ -287,15 +300,16 @@ input_size = vocab_size
 hidden_size = 64
 num_epochs = 10
 
+print(inputy)
 model = Model(input_size, input_size, hidden_size)
 model.makeTest()
 # while (input("Train?") == "y"):
-model.trainSequence(1, inputy, graph=False)
+model.trainSequence(500, inputy)
 model.makeTest()
 
-dec = model.generateDecimal("Helloworld")
-print(dec)
-outt = model.interpretDecimal(dec)
-print(outt)
+# dec = model.generateDecimal("Helloworld")
+# print(dec)
+# outt = model.interpretDecimal(dec)
+# print(outt)
 
 #print(model.testDeterminism())
