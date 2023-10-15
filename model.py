@@ -12,18 +12,17 @@ torch.manual_seed(1337)
 random.seed(1337)
 
 """
-TODO:
--Convert decimal to binary
+TODO
 
+Clean up code
+Better variable names
+Immediately convert to binary
 """
 print("Finished imports")
 
-# with open('input.txt', 'r', encoding='utf-8') as f:
-#     text = f.read() # get text
+with open('input.txt', 'r', encoding='utf-8') as f:
+    text = f.read() # get text
 
-text = ["bac", "bbc", "acb", "cabac", "babac"]
-#text = ["a","b","c"]
-#given ba, 50/50 
 tokens = sorted(list(set("".join(text))))
 vocab_size = len(tokens) + 1
 cid = { ch:i for i,ch in enumerate(tokens)}
@@ -38,10 +37,12 @@ decode = lambda l: "".join([icd[i] for i in l])
 limit = 10000
 text = text[:limit]
 inputy = []
+t = []
 double = False
 wTFN = False
 recording = False
 record = []
+rt = []
 once = False
 
 def oneHott(x):
@@ -49,35 +50,29 @@ def oneHott(x):
     res[cid[x]] = 1
     return res
 
+
 for i in text:
-    rec = []
-    for j in i:
-        rec.append(oneHott(j))
-    rec.append(end)
-    inputy.append(rec)
+    if i == "\n":
+        if wTFN:
+            wTFN = False
+            recording = True
+        if double:
+            recording = False
+            wTFN = True
+            record.append(end)
+            inputy.append(record[1:-1])
+            t.append(rt[1:-1])
+            record = []
+            rt = []
+        double = not double
+    if double and i != "\n":
+        double = False
+    if recording:
+        record.append(oneHott(i))
+        rt.append(i) 
 
-# for i in text:
-#     if i == "\n":
-#         if wTFN:
-#             wTFN = False
-#             recording = True
-#         if double:
-#             recording = False
-#             wTFN = True
-#             record.append(end)
-#             inputy.append(record[1:])
-#             record = []
-#         #     if not once:
-#         #         once= True
-#         #     else:
-#         #         break
-#         double = not double
-#     if double and i != "\n":
-#         double = False
-#     if recording:
-#         record.append(oneHott(i)) if i != " " else None
-
-# inputy = inputy[1:]
+inputy = inputy[1:]
+t = t[1:]
 print("Finished data processing")
 
 class LSTM(nn.Module):
@@ -165,10 +160,8 @@ class Model(nn.Module):
         for epoch in range(epochs):
             loss_holder = []
             for line in inputs:
-                print("new line ------")
                 start = True
                 for char in range(len(line) - 1):
-                    print("new character")
                     self.model.forward(torch.tensor(line[char], dtype=torch.float64).view(1,-1))
                     if start:
                         pos = np.argmax(line[char])
@@ -176,7 +169,6 @@ class Model(nn.Module):
                         start = False
                     output = self.model.getOut().view(-1)
                     loss = criterion(output, torch.tensor(line[char+1], dtype=torch.float64).view(-1))
-                    print("Put in ", icd[np.argmax(line[char])], " got ", output.tolist(), " when wanted ", line[char+1], " and the loss was ", loss.item())
                     optimizer.zero_grad()
                     loss.backward()
                     optimizer.step()
@@ -211,7 +203,6 @@ class Model(nn.Module):
             output = self.model.getOut().view(1,-1)
             a = output.view(-1).tolist()
             a = [i/sum(a) for i in a]
-            print("the output distro given " + "".join(out) + " was " + str(a))
             pos = np.random.choice(range(len(a)), p=a)
             if pos == vocab_size - 1:
                 break
@@ -229,26 +220,38 @@ class Model(nn.Module):
             onehots = [oneHott(i) for i in message]
             onehots.append(end)
             sp = [i / sum(self.sprobs) for i in self.sprobs]
-            print(sp)
             decimal = sum(sp[:last])
-            print(decimal)
             rang = sp[last]
             self.m = 0
             for index, i in enumerate(onehots):
                 if index == 0:
                     continue
-                print("the for loop ran")
                 self.model.forward(torch.tensor(onehots[index-1], dtype=torch.float64).view(1,-1))
                 out = self.model.getOut().view(-1).tolist()
                 self.m = self.model.getHids()
                 b = sum(out[:np.argmax(i)])
                 decimal += b*rang
-                print(decimal)
                 rang *= out[np.argmax(i)]
-            return decimal
+            res = []
+            nd = 0
+            v = 1
+            while nd < decimal or nd >= decimal + rang:
+
+                add = (1/2**v)
+                if nd + add < decimal + rang:
+                    nd += add
+                    res.append(1)
+                else:
+                    res.append(0)
+                v+=1
+
+            return res
         
     def interpretDecimal(self, decimal):
         with torch.no_grad():
+            o = 0
+            for index, i in enumerate(decimal):
+                o += float(i) * (1/(2**(index+1)))
             self.model.reset()
             outdistro = [i / sum(self.sprobs) for i in self.sprobs]
             res = ""
@@ -268,11 +271,10 @@ class Model(nn.Module):
                         r = mid
 
             for _ in range(100):
-                c, ps = midsearch(decimal, outdistro)
-                decimal -= ps
-                decimal /= outdistro[c]
+                c, ps = midsearch(o, outdistro)
+                o -= ps
+                o /= outdistro[c]
                 if c == vocab_size - 1:
-                    print("found end, breaking")
                     break
                 res += icd[c]
                 print("Got a " + icd[c])
@@ -288,17 +290,40 @@ input_size = vocab_size
 hidden_size = 64
 num_epochs = 10
 
-print(inputy)
 model = Model(input_size, input_size, hidden_size)
 model.makeTest()
-model.trainSequence(500, inputy)
+model.trainSequence(1, inputy, graph=False)
 model.makeTest()
-model.makeTest()
+model.trainSequence(1, inputy, graph=False)
 model.makeTest()
 
-# dec = model.generateDecimal("Helloworld")
-# print(dec)
-# outt = model.interpretDecimal(dec)
-# print(outt)
 
+def log(x):
+    res = 0
+    while 2**res < x:
+        res += 1
+    return res
+
+a = 0
+for i in t[:5]:
+    print("New test")
+    n = len(i) * log(vocab_size)
+    dec = model.generateDecimal(i)
+    if model.interpretDecimal(dec) != i:
+        print("There was an issue")
+        print(model.interpretDecimal(dec))
+        print(i)
+    c = len(dec)
+    a += (1-(c/n))*100
+a /= 5
+print("Compressed text was ", a, "% shorter than uncompressed")
 #print(model.testDeterminism())
+
+"""
+How to generate in only binary
+rang gets too small
+"""
+
+"""
+How to interpret in only binary
+"""
