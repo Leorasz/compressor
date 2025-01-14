@@ -278,11 +278,13 @@ class Model(nn.Module):
 
 input_size = vocab_size
 hidden_size = 64
-num_epochs = 10
+num_epochs = 5
 
 model = Model(input_size, input_size, hidden_size)
+print("Example text generation to show untrained state of the model:")
 model.makeTest()
 model.trainSequence(num_epochs, inputy)
+print("Example text generatoin to show the trained state of the model- not exactly Macbeth, but more similar to actual Shakespeare, making the encoding more efficient:")
 model.makeTest()
 
 
